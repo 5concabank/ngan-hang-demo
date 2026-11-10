@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import math
 
 st.set_page_config(
     page_title="FINBANK",
@@ -11,22 +10,8 @@ st.set_page_config(
 )
 
 # =========================
-# KHỞI TẠO DỮ LIỆU
+# KHỞI TẠO DỮ LIỆU MẪU
 # =========================
-if "balance" not in st.session_state:
-    st.session_state.balance = 50000000
-
-if "cards" not in st.session_state:
-    st.session_state.cards = []
-
-if "savings" not in st.session_state:
-    st.session_state.savings = []
-
-if "loans" not in st.session_state:
-    st.session_state.loans = []
-
-if "history" not in st.session_state:
-    st.session_state.history = []
 
 def money(number):
     return f"{number:,.0f} VNĐ"
@@ -39,9 +24,115 @@ def add_history(action, amount, note):
         "Nội dung": note
     })
 
+# Nạp dữ liệu mẫu khi chưa có dữ liệu trong phiên
+if "demo_data_loaded" not in st.session_state:
+
+    st.session_state.balance = 70000000
+
+    st.session_state.cards = [
+        {
+            "Chủ thẻ": "Nguyễn Văn An",
+            "Loại thẻ": "Thẻ ghi nợ nội địa",
+            "Mã thẻ mô phỏng": "FB000001",
+            "Ngày mở": "01/11/2026"
+        }
+    ]
+
+    saving_principal = 100000000
+    saving_interest = 6000000
+
+    st.session_state.savings = [
+        {
+            "Gốc": saving_principal,
+            "Lãi suất": 6.0,
+            "Kỳ hạn (tháng)": 12,
+            "Lãi dự kiến": saving_interest,
+            "Tổng nhận khi đáo hạn": 106000000
+        }
+    ]
+
+    # Khoản vay mẫu
+    principal = 50000000
+    rate = 10.0
+    months = 12
+    monthly_rate = rate / 100 / 12
+
+    payment = (
+        principal * monthly_rate *
+        (1 + monthly_rate) ** months
+    ) / (
+        (1 + monthly_rate) ** months - 1
+    )
+
+    remaining = principal
+    schedule = []
+    total_interest = 0
+    total_principal = 0
+
+    for month in range(1, months + 1):
+        opening = remaining
+        interest = opening * monthly_rate
+        principal_paid = min(payment - interest, remaining)
+
+        if month == months:
+            principal_paid = remaining
+
+        actual_payment = principal_paid + interest
+        remaining = max(0, remaining - principal_paid)
+
+        total_interest += interest
+        total_principal += principal_paid
+
+        schedule.append({
+            "Tháng": month,
+            "Dư nợ đầu kỳ": round(opening),
+            "Tiền gốc": round(principal_paid),
+            "Tiền lãi": round(interest),
+            "Tổng phải trả": round(actual_payment),
+            "Dư nợ cuối kỳ": round(remaining)
+        })
+
+    st.session_state.loans = [
+        {
+            "Người vay": "Nguyễn Văn An",
+            "Tiền vay": principal,
+            "Lãi suất": rate,
+            "Kỳ hạn": months,
+            "Trả hàng tháng": payment,
+            "Tổng gốc": total_principal,
+            "Tổng lãi": total_interest,
+            "Tổng thanh toán": total_principal + total_interest,
+            "Bảng trả nợ": schedule
+        }
+    ]
+
+    st.session_state.history = [
+        {
+            "Thời gian": "01/11/2026 08:30",
+            "Giao dịch": "Nạp tiền",
+            "Số tiền": money(20000000),
+            "Nội dung": "Nạp tiền vào tài khoản mô phỏng"
+        },
+        {
+            "Thời gian": "02/11/2026 09:15",
+            "Giao dịch": "Gửi tiết kiệm",
+            "Số tiền": money(100000000),
+            "Nội dung": "Mở sổ tiết kiệm kỳ hạn 12 tháng"
+        },
+        {
+            "Thời gian": "03/11/2026 10:00",
+            "Giao dịch": "Tính khoản vay",
+            "Số tiền": money(50000000),
+            "Nội dung": "Khoản vay mô phỏng 12 tháng"
+        }
+    ]
+
+    st.session_state.demo_data_loaded = True
+
 # =========================
 # GIAO DIỆN
 # =========================
+
 st.markdown("""
 <style>
 .stApp {
@@ -77,39 +168,30 @@ menu = st.sidebar.radio(
 # =========================
 # TRANG CHỦ
 # =========================
+
 if menu == "🏠 Trang chủ":
     st.title("Xin chào! Chào mừng đến FINBANK")
-
     st.subheader("Tổng quan tài khoản")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.metric(
-            "Số dư hiện tại",
-            money(st.session_state.balance)
-        )
+        st.metric("Số dư hiện tại", money(st.session_state.balance))
 
     with col2:
         total_saving = sum(
             item["Gốc"] + item["Lãi dự kiến"]
             for item in st.session_state.savings
         )
-        st.metric("Tổng tiền tiết kiệm dự kiến",
-                  money(total_saving))
+        st.metric("Tổng tiền tiết kiệm dự kiến", money(total_saving))
 
     st.divider()
 
     col1, col2, col3 = st.columns(3)
 
-    with col1:
-        st.metric("Số thẻ đã mở", len(st.session_state.cards))
-
-    with col2:
-        st.metric("Sổ tiết kiệm", len(st.session_state.savings))
-
-    with col3:
-        st.metric("Khoản vay mô phỏng", len(st.session_state.loans))
+    col1.metric("Số thẻ đã mở", len(st.session_state.cards))
+    col2.metric("Sổ tiết kiệm", len(st.session_state.savings))
+    col3.metric("Khoản vay mô phỏng", len(st.session_state.loans))
 
     st.divider()
     st.subheader("Giao dịch nhanh")
@@ -155,6 +237,7 @@ if menu == "🏠 Trang chủ":
 # =========================
 # MỞ THẺ
 # =========================
+
 elif menu == "💳 Mở thẻ":
     st.title("💳 Đăng ký mở thẻ")
 
@@ -162,13 +245,16 @@ elif menu == "💳 Mở thẻ":
         name = st.text_input("Họ và tên")
         card_type = st.selectbox(
             "Loại thẻ",
-            ["Thẻ ghi nợ nội địa", "Thẻ ghi nợ quốc tế", "Thẻ tín dụng mô phỏng"]
+            [
+                "Thẻ ghi nợ nội địa",
+                "Thẻ ghi nợ quốc tế",
+                "Thẻ tín dụng mô phỏng"
+            ]
         )
         submit = st.form_submit_button("Đăng ký mở thẻ")
 
     if submit:
         if not name.strip():
-            
             st.warning("Vui lòng nhập họ tên.")
         else:
             card = {
@@ -177,7 +263,6 @@ elif menu == "💳 Mở thẻ":
                 "Mã thẻ mô phỏng": f"FB{len(st.session_state.cards)+1:06d}",
                 "Ngày mở": datetime.now().strftime("%d/%m/%Y")
             }
-
             st.session_state.cards.append(card)
             add_history("Mở thẻ", 0, card_type)
             st.success("Đăng ký thẻ mô phỏng thành công!")
@@ -195,9 +280,9 @@ elif menu == "💳 Mở thẻ":
 # =========================
 # GỬI TIẾT KIỆM
 # =========================
+
 elif menu == "💰 Gửi tiết kiệm":
     st.title("💰 Gửi tiết kiệm")
-
     st.write("Lãi suất giả định: 3% - 6%/năm.")
 
     with st.form("saving_form"):
@@ -206,17 +291,14 @@ elif menu == "💰 Gửi tiết kiệm":
             min_value=0,
             step=1000000
         )
-
         months = st.selectbox(
             "Kỳ hạn gửi",
             [1, 3, 6, 9, 12, 18, 24]
         )
-
         rate = st.selectbox(
             "Lãi suất (%/năm)",
             [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0]
         )
-
         submit = st.form_submit_button("Xác nhận gửi tiết kiệm")
 
     if submit:
@@ -269,29 +351,26 @@ elif menu == "💰 Gửi tiết kiệm":
 # =========================
 # VAY VỐN
 # =========================
+
 elif menu == "🏦 Vay vốn":
     st.title("🏦 Công cụ tính khoản vay")
     st.write("Lãi suất giả định: 6% - 12%/năm.")
 
     with st.form("loan_form"):
         borrower = st.text_input("Tên người vay")
-
         principal = st.number_input(
             "Số tiền vay (VNĐ)",
             min_value=0,
             step=1000000
         )
-
         months = st.selectbox(
             "Thời hạn vay (tháng)",
             [6, 12, 18, 24, 36, 48, 60]
         )
-
         rate = st.selectbox(
             "Lãi suất (%/năm)",
             [6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]
         )
-
         submit = st.form_submit_button("Tính khoản vay")
 
     if submit:
@@ -302,15 +381,12 @@ elif menu == "🏦 Vay vốn":
         else:
             monthly_rate = rate / 100 / 12
 
-            if monthly_rate == 0:
-                payment = principal / months
-            else:
-                payment = (
-                    principal * monthly_rate *
-                    (1 + monthly_rate) ** months
-                ) / (
-                    (1 + monthly_rate) ** months - 1
-                )
+            payment = (
+                principal * monthly_rate *
+                (1 + monthly_rate) ** months
+            ) / (
+                (1 + monthly_rate) ** months - 1
+            )
 
             balance = principal
             schedule = []
@@ -318,8 +394,13 @@ elif menu == "🏦 Vay vốn":
             total_principal = 0
 
             for month in range(1, months + 1):
-                interest = balance * monthly_rate
+                opening = balance
+                interest = opening * monthly_rate
                 principal_paid = min(payment - interest, balance)
+
+                if month == months:
+                    principal_paid = balance
+
                 actual_payment = principal_paid + interest
                 balance = max(0, balance - principal_paid)
 
@@ -328,7 +409,7 @@ elif menu == "🏦 Vay vốn":
 
                 schedule.append({
                     "Tháng": month,
-                    "Dư nợ đầu kỳ": round(balance + principal_paid),
+                    "Dư nợ đầu kỳ": round(opening),
                     "Tiền gốc": round(principal_paid),
                     "Tiền lãi": round(interest),
                     "Tổng phải trả": round(actual_payment),
@@ -348,13 +429,11 @@ elif menu == "🏦 Vay vốn":
             }
 
             st.session_state.loans.append(loan)
-
             add_history(
                 "Tính khoản vay",
                 principal,
                 f"Khoản vay mô phỏng của {borrower}"
             )
-
             st.success("Đã tính toán khoản vay mô phỏng!")
 
     st.divider()
@@ -366,36 +445,18 @@ elif menu == "🏦 Vay vốn":
                 f"Khoản vay {index + 1} - {loan['Người vay']}"
             ):
                 c1, c2 = st.columns(2)
-
                 c1.metric("Số tiền gốc", money(loan["Tiền vay"]))
                 c2.metric("Lãi suất năm", f"{loan['Lãi suất']}%")
-
-                c1.metric(
-                    "Tiền trả mỗi tháng",
-                    money(loan["Trả hàng tháng"])
-                )
-
-                c2.metric(
-                    "Tổng tiền lãi",
-                    money(loan["Tổng lãi"])
-                )
-
-                c1.metric(
-                    "Tổng tiền gốc trả",
-                    money(loan["Tổng gốc"])
-                )
-
-                c2.metric(
-                    "Tổng tiền phải trả",
-                    money(loan["Tổng thanh toán"])
-                )
+                c1.metric("Tiền trả mỗi tháng", money(loan["Trả hàng tháng"]))
+                c2.metric("Tổng tiền lãi", money(loan["Tổng lãi"]))
+                c1.metric("Tổng tiền gốc trả", money(loan["Tổng gốc"]))
+                c2.metric("Tổng tiền phải trả", money(loan["Tổng thanh toán"]))
 
                 st.write("### Bảng lịch trả nợ")
                 df = pd.DataFrame(loan["Bảng trả nợ"])
                 st.dataframe(df, use_container_width=True)
 
                 csv = df.to_csv(index=False).encode("utf-8-sig")
-
                 st.download_button(
                     "Tải bảng trả nợ CSV",
                     data=csv,
@@ -409,6 +470,7 @@ elif menu == "🏦 Vay vốn":
 # =========================
 # LỊCH SỬ GIAO DỊCH
 # =========================
+
 elif menu == "📊 Lịch sử giao dịch":
     st.title("📊 Lịch sử giao dịch")
 
@@ -417,7 +479,6 @@ elif menu == "📊 Lịch sử giao dịch":
         st.dataframe(df, use_container_width=True)
 
         csv = df.to_csv(index=False).encode("utf-8-sig")
-
         st.download_button(
             "📥 Tải lịch sử giao dịch",
             data=csv,
@@ -430,6 +491,7 @@ elif menu == "📊 Lịch sử giao dịch":
 # =========================
 # GIỚI THIỆU
 # =========================
+
 elif menu == "ℹ️ Giới thiệu":
     st.title("ℹ️ Về FINBANK")
 
@@ -452,9 +514,6 @@ elif menu == "ℹ️ Giới thiệu":
     """)
 
 st.sidebar.divider()
-st.sidebar.caption("FINBANK | Phiên bản học tập 2.0")
+st.sidebar.caption("FINBANK | Phiên bản học tập 3.0")
 st.sidebar.caption("Dữ liệu mô phỏng, có thể mất khi phiên chạy kết thúc.")
 
-
-
-            
