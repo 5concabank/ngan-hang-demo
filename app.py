@@ -168,6 +168,7 @@ elif menu == "💳 Mở thẻ":
 
     if submit:
         if not name.strip():
+            
             st.warning("Vui lòng nhập họ tên.")
         else:
             card = {
